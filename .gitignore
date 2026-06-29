@@ -18,9 +18,7 @@ env/
 # Logs
 *.log
 
-# Output
-output.json
-screenshots/
+# Output (Keep per assignment request)
 
 # Playwright
 playwright-report/
