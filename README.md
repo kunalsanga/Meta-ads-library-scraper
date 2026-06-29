@@ -5,12 +5,38 @@ Develop a Python automation script that searches the Meta Ads Library for a give
 The goal is to build the first version of Spotnxt's Competitor Intelligence Engine.
 
 ## Quick Start
+
+### 1. Clone & Set Up Environment
+```bash
+git clone https://github.com/kunalsanga/Meta-ads-library-scraper.git
+cd spotnxt-meta-ads
+python -m venv .venv
+```
+
+**Activate Virtual Environment:**
+- Windows: `.venv\Scripts\activate`
+- Mac/Linux: `source .venv/bin/activate`
+
+### 2. Install Dependencies & Playwright
 ```bash
 pip install -r requirements.txt
 playwright install chromium
-python app.py --brand Nike
 ```
 
+### 3. Configure Database
+```bash
+cp .env.example .env
+# Edit .env with your PostgreSQL credentials
+```
+
+### 4. Run the Scraper
+```bash
+# Interactive mode (Prompts for brand)
+python app.py
+
+# Or pass the brand directly
+python app.py --brand Nike
+```
 ## Expected Workflow Supported
 - **Step 1:** Opens the Meta Ads Library (https://www.facebook.com/ads/library)
 - **Step 2:** Applies filters (`Country: India`, `Ad Category: All Ads`)
