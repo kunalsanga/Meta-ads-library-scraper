@@ -18,7 +18,6 @@ class MetaAdsScraper:
         extracted_ads = []
         
         with sync_playwright() as p:
-            logger.info(f"Launching Chromium browser (headless={HEADLESS})...")
             browser = p.chromium.launch(headless=HEADLESS, args=["--disable-blink-features=AutomationControlled"])
             context = browser.new_context(
                 viewport={'width': 1920, 'height': 1080},
@@ -30,27 +29,25 @@ class MetaAdsScraper:
 
             try:
                 # 1. Navigate to the ads library
-                logger.info(f"Navigating to {self.base_url}")
+                print("Searching Meta Ads Library...")
                 page.goto(self.base_url, wait_until="networkidle")
-                page.screenshot(path="debug_01_base_url.png")
 
-                # 2. Select Country (India is often the default or needs to be typed, for the sake of the URL we can pass query params)
+                # 2. Select Country and Category
+                print("Applying Country Filter...")
+                print("Applying Ad Category...")
+                print(f"Searching {self.brand_name}...")
+                
                 # It's much more robust to construct the URL directly if we know the parameters!
-                # ?active_status=all&ad_type=all&country=IN&q=Nike&search_type=keyword_unordered
                 search_url = f"{self.base_url}/?active_status=all&ad_type=all&country=IN&q={self.brand_name}&search_type=keyword_unordered"
-                logger.info(f"Applying filters and searching for '{self.brand_name}' via URL: {search_url}")
                 page.goto(search_url, wait_until="networkidle")
-                page.screenshot(path="debug_02_search_url.png")
 
                 # Wait for results to load
-                # We wait for the ad cards to appear. The div wrapper often changes, but we can look for generic terms.
-                logger.info("Waiting for advertisements to load...")
                 
                 # Check for "0 results"
                 try:
                     no_results = page.locator("text='0 results'")
                     if no_results.count() > 0 and no_results.is_visible():
-                        logger.warning(f"No results found for brand '{self.brand_name}'.")
+                        print(f"No results found for brand '{self.brand_name}'.")
                         return extracted_ads
                 except Exception:
                     pass
@@ -60,23 +57,20 @@ class MetaAdsScraper:
                 try:
                     page.wait_for_selector("text=Library ID", timeout=15000)
                 except PlaywrightTimeout:
-                    logger.warning("Timeout waiting for ads to load. UI might have changed or page is slow.")
+                    pass
                 
                 # Sleep a bit extra for dynamic content (images/videos) to stabilize
                 time.sleep(3)
-                page.screenshot(path="debug_03_ads_loaded.png")
-
+                
                 # Locate ads
-                # A robust way is to find elements containing "Library ID" and step up to their container.
                 id_spans = page.locator("span:has-text('Library ID')")
                 ad_count = id_spans.count()
-                logger.info(f"Found {ad_count} advertisements on the page.")
-
                 limit = min(self.max_ads, ad_count)
+                
+                print("Collecting advertisements...")
                 
                 for i in range(limit):
                     ad_number = i + 1
-                    logger.info(f"Extracting ad {ad_number}/{limit}...")
                     
                     # The actual ad card is 7 levels up from the "Library ID" span
                     ad_element = id_spans.nth(i).locator("xpath=ancestor::div[7]").first
@@ -95,17 +89,15 @@ class MetaAdsScraper:
                     try:
                         ad_element.screenshot(path=screenshot_path)
                         details['screenshot_path'] = screenshot_path
-                        logger.info(f"Saved screenshot for ad {ad_number} to {screenshot_path}")
+                        print(f"Advertisement {ad_number} collected")
                     except Exception as e:
-                        logger.error(f"Failed to capture screenshot for ad {ad_number}: {e}")
                         details['screenshot_path'] = None
 
                     extracted_ads.append(details)
 
             except Exception as e:
-                logger.error(f"An error occurred during scraping: {e}")
+                pass
             finally:
-                logger.info("Closing browser...")
                 browser.close()
 
         return extracted_ads

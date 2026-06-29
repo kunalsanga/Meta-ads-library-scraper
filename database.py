@@ -16,7 +16,6 @@ def init_db():
     """Initializes the database schema if it does not exist."""
     try:
         Base.metadata.create_all(bind=engine)
-        logger.info("Database schema initialized successfully.")
     except Exception as e:
         logger.error(f"Error initializing database: {e}")
         raise

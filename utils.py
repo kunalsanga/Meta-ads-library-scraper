@@ -30,9 +30,8 @@ def save_json(data: list, filename: str = "output.json"):
     try:
         with open(filepath, 'w', encoding='utf-8') as f:
             json.dump(data, f, indent=4, ensure_ascii=False)
-        logging.info(f"Successfully saved data to {filepath}")
     except Exception as e:
-        logging.error(f"Failed to save JSON: {e}")
+        logger.error(f"Failed to save JSON to {filepath}: {e}")
 
 def get_screenshot_path(brand_name: str, ad_number: int) -> str:
     """Generates the file path for a screenshot."""
