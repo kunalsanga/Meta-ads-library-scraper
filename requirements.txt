@@ -1,0 +1,6 @@
+playwright
+sqlalchemy
+psycopg2-binary
+python-dotenv
+pydantic
+tqdm
