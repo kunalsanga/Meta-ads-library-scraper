@@ -2,6 +2,15 @@
 
 A robust Python automation tool to scrape advertisements from the Meta Ads Library, store data in a PostgreSQL database, and export it to a JSON file.
 
+The scraper collects the first five advertisements from the Meta Ads Library, stores screenshots, saves structured JSON output, and inserts the data into PostgreSQL.
+
+## Usage
+```bash
+pip install -r requirements.txt
+playwright install chromium
+python app.py --brand Nike
+```
+
 ## Features
 - **Playwright Automation**: Uses synchronous Playwright with explicit waits and robust locators.
 - **Resilient Extraction**: Gracefully handles missing elements (e.g., video URLs or CTAs) by falling back to `null` instead of failing.

@@ -30,89 +30,96 @@ def extract_ad_details(ad_element: Locator) -> dict:
     """
     details = {}
 
-    # Extract Status (e.g., Active)
-    # Status usually appears in a span with text "Active" or "Inactive"
+    # 1. Header Information (Status, Started Date, Platforms)
     details['status'] = None
-    try:
-        status_element = ad_element.locator("span:has-text('Active'), span:has-text('Inactive')").first
-        if status_element.count() > 0:
-            details['status'] = status_element.inner_text().strip()
-    except Exception:
-        pass
-
-    # Extract Started Date
-    # Text typically starts with "Started running on"
     details['started_date'] = None
+    details['platform'] = None
     try:
-        started_element = ad_element.locator("span:has-text('Started running on')").first
-        if started_element.count() > 0:
-            text = started_element.inner_text().strip()
-            details['started_date'] = text.replace("Started running on ", "").strip()
-    except Exception:
-        pass
-        
-    # Extract Platform (e.g., Facebook, Instagram)
-    # Platforms are often represented by icons (e.g. svg with aria-label) or tooltip text
-    # This is often brittle, so we collect the aria-labels of platform icons
+        header = ad_element.locator("> div").first
+        if header.count() > 0:
+            header_text = header.inner_text().split('\n')
+            header_text = [t.strip() for t in header_text if t.strip() and t.strip() != '\u200b']
+            
+            for text in header_text:
+                if text in ["Active", "Inactive"]:
+                    details['status'] = text
+                elif " - " in text or "Started running on" in text or (len(text.split()) > 2 and any(month in text for month in ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"])):
+                    # Very likely the date string
+                    details['started_date'] = text.replace("Started running on ", "").strip()
+    except Exception as e:
+        logger.debug(f"Failed to extract header: {e}")
+
+    # Fallback for Platform using HTML scan
     platforms = []
     try:
-        icons = ad_element.locator("div.xtwsqm5 > div > div > span") # typical platform container
-        for i in range(icons.count()):
-            # Fallback to look for generic tooltips or aria labels if specific classes fail
-            # For resilience, we just look at small logos or assume unknown if missing
-            pass
-        # A more generic approach: check if word Facebook/Instagram is anywhere in a visually hidden span
-        for pf in ["Facebook", "Instagram", "Audience Network", "Messenger"]:
-            if ad_element.locator(f"span:has-text('{pf}')").count() > 0:
-                platforms.append(pf)
+        html = ad_element.inner_html().lower()
+        if 'facebook' in html or 'fbcdn' in html: platforms.append("Facebook")
+        if 'instagram' in html: platforms.append("Instagram")
+        if 'messenger' in html: platforms.append("Messenger")
+        if 'audience network' in html: platforms.append("Audience Network")
+        platforms = list(set(platforms))
     except Exception:
         pass
     details['platform'] = ", ".join(platforms) if platforms else None
 
-    # Primary Text (The main post text)
-    # Usually in a div with a specific style, but we can look for generic text blocks
-    # Here we pick a common generic selector for the post body
+    # 2. Primary Text
     details['primary_text'] = safe_extract_text(ad_element, "div[style*='white-space: pre-wrap']")
+    if not details['primary_text']:
+         details['primary_text'] = safe_extract_text(ad_element, "div[style*='white-space:pre-wrap']")
 
-    # Call to Action (CTA)
-    # Usually a div that looks like a button
-    # Let's look for a standard button role or common CTA texts
-    cta_locators = [
-        "div[role='button']:has-text('Shop Now')",
-        "div[role='button']:has-text('Learn More')",
-        "div[role='button']:has-text('Sign Up')",
-        "div[role='button']:has-text('Apply Now')",
-        "div[role='button']:has-text('Book Now')",
-        "div.x1q0g3np.x1a02dak" # typical CTA wrapper class fallback
-    ]
-    details['cta'] = None
-    for loc in cta_locators:
-        cta_text = safe_extract_text(ad_element, loc)
-        if cta_text and len(cta_text) < 30: # sanity check
-            details['cta'] = cta_text
-            break
-
-    # Headline and Description (under the image/video)
-    # These are usually the bold text and secondary text near the CTA
-    # We use a broad selector and clean it up
-    details['headline'] = None
-    details['description'] = None
-    
-    # Image URL and Video URL
-    details['image_url'] = safe_extract_attribute(ad_element, "src", "img")
-    details['video_url'] = safe_extract_attribute(ad_element, "src", "video")
-
-    # Landing Page URL
-    # Usually the href of the main anchor tag
-    hrefs = []
+    # 3. Media (Image and Video URLs)
+    details['image_url'] = None
     try:
-        links = ad_element.locator("a")
-        for i in range(links.count()):
-            href = links.nth(i).get_attribute("href")
-            if href and "facebook.com/ads/library" not in href:
-                hrefs.append(href)
+        images = ad_element.locator("img")
+        if images.count() > 1:
+            details['image_url'] = images.nth(1).get_attribute("src")
+        elif images.count() == 1:
+            details['image_url'] = images.nth(0).get_attribute("src")
     except Exception:
         pass
-    details['landing_page'] = hrefs[0] if hrefs else None
+        
+    details['video_url'] = safe_extract_attribute(ad_element, "src", "video")
+
+    # 4. Landing Page, Headline, Description, CTA
+    details['headline'] = None
+    details['description'] = None
+    details['cta'] = None
+    details['landing_page'] = None
+    try:
+        links = ad_element.locator("a[target='_blank']")
+        if links.count() > 1:
+            lp_link = links.last
+            details['landing_page'] = lp_link.get_attribute("href")
+            
+            lp_texts = lp_link.inner_text().split('\n')
+            lp_texts = [t.strip() for t in lp_texts if t.strip() and t.strip() != '\u200b']
+            
+            if len(lp_texts) >= 3:
+                details['headline'] = lp_texts[0]
+                details['description'] = lp_texts[1]
+                details['cta'] = lp_texts[2]
+            elif len(lp_texts) == 2:
+                details['headline'] = lp_texts[0]
+                details['cta'] = lp_texts[1]
+            elif len(lp_texts) == 1:
+                details['cta'] = lp_texts[0]
+    except Exception as e:
+        logger.debug(f"Failed to extract landing page details: {e}")
+
+    # Final fallback for CTA if the above fails
+    if not details['cta']:
+        cta_locators = [
+            "div[role='button']:has-text('Shop Now')",
+            "div[role='button']:has-text('Learn More')",
+            "div[role='button']:has-text('Sign Up')",
+            "div[role='button']:has-text('Apply Now')",
+            "div[role='button']:has-text('Book Now')",
+            "div.x1q0g3np.x1a02dak"
+        ]
+        for loc in cta_locators:
+            cta_text = safe_extract_text(ad_element, loc)
+            if cta_text and len(cta_text) < 30:
+                details['cta'] = cta_text
+                break
 
     return details

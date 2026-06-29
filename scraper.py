@@ -22,7 +22,9 @@ class MetaAdsScraper:
             browser = p.chromium.launch(headless=HEADLESS, args=["--disable-blink-features=AutomationControlled"])
             context = browser.new_context(
                 viewport={'width': 1920, 'height': 1080},
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                locale="en-US",
+                extra_http_headers={"Accept-Language": "en-US,en;q=0.9"}
             )
             page = context.new_page()
 
@@ -30,6 +32,7 @@ class MetaAdsScraper:
                 # 1. Navigate to the ads library
                 logger.info(f"Navigating to {self.base_url}")
                 page.goto(self.base_url, wait_until="networkidle")
+                page.screenshot(path="debug_01_base_url.png")
 
                 # 2. Select Country (India is often the default or needs to be typed, for the sake of the URL we can pass query params)
                 # It's much more robust to construct the URL directly if we know the parameters!
@@ -37,6 +40,7 @@ class MetaAdsScraper:
                 search_url = f"{self.base_url}/?active_status=all&ad_type=all&country=IN&q={self.brand_name}&search_type=keyword_unordered"
                 logger.info(f"Applying filters and searching for '{self.brand_name}' via URL: {search_url}")
                 page.goto(search_url, wait_until="networkidle")
+                page.screenshot(path="debug_02_search_url.png")
 
                 # Wait for results to load
                 # We wait for the ad cards to appear. The div wrapper often changes, but we can look for generic terms.
@@ -60,19 +64,13 @@ class MetaAdsScraper:
                 
                 # Sleep a bit extra for dynamic content (images/videos) to stabilize
                 time.sleep(3)
+                page.screenshot(path="debug_03_ads_loaded.png")
 
                 # Locate ads
                 # A robust way is to find elements containing "Library ID" and step up to their container.
-                ad_locators = page.locator("div:has(> div > div > span:has-text('Library ID'))")
-                ad_count = ad_locators.count()
+                id_spans = page.locator("span:has-text('Library ID')")
+                ad_count = id_spans.count()
                 logger.info(f"Found {ad_count} advertisements on the page.")
-
-                if ad_count == 0:
-                    # Fallback locator if the first one fails
-                    logger.info("Retrying with fallback ad selector...")
-                    ad_locators = page.locator("div.x1y744je, div[style*='max-width: 800px']") # common card classes
-                    ad_count = ad_locators.count()
-                    logger.info(f"Fallback found {ad_count} advertisements.")
 
                 limit = min(self.max_ads, ad_count)
                 
@@ -80,7 +78,8 @@ class MetaAdsScraper:
                     ad_number = i + 1
                     logger.info(f"Extracting ad {ad_number}/{limit}...")
                     
-                    ad_element = ad_locators.nth(i)
+                    # The actual ad card is 7 levels up from the "Library ID" span
+                    ad_element = id_spans.nth(i).locator("xpath=ancestor::div[7]").first
                     
                     # Scroll ad into view to ensure it renders and we can take a good screenshot
                     ad_element.scroll_into_view_if_needed()
